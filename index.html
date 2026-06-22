@@ -101,16 +101,16 @@
     <span class="ui-val" id="lives-el">❤️❤️❤️</span>
   </div>
 </div>
-<canvas id="game-canvas" width="800" height="450"></canvas>
+<div id="canvas-wrap" style="position:relative;display:inline-block;line-height:0;">
+  <canvas id="game-canvas" width="800" height="450"></canvas>
+  <div id="tz-left"  style="position:absolute;left:0;top:0;width:35%;height:100%;z-index:5;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:none;"></div>
+  <div id="tz-right" style="position:absolute;right:0;top:0;width:35%;height:100%;z-index:5;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:none;"></div>
+  <div id="tz-jump"  style="position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:6;width:64px;height:64px;border-radius:50%;border:2px solid rgba(212,160,23,0.7);background:rgba(212,160,23,0.18);color:#F5E6C8;font-size:26px;display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:none;">↑</div>
+</div>
 <div id="controls">
-  <span class="ctrl-key">← → 이동</span>
+  <span class="ctrl-key">← → 이동 (화면 좌우 터치)</span>
   <span class="ctrl-key">↑ / Space 점프</span>
   <span class="ctrl-key">Z 대시</span>
-</div>
-<div class="mobile-btns">
-  <div class="mb" id="mb-left">◀</div>
-  <div class="mb" id="mb-jump">↑</div>
-  <div class="mb" id="mb-right">▶</div>
 </div>
 <div id="overlay">
   <h1>🌺<br>Bali Quest</h1>
@@ -454,37 +454,72 @@ try { unlockedStages = Math.max(1, parseInt(localStorage.getItem('bq_unlocked')|
 // ════════════════════════════════════════
 //  INPUT
 // ════════════════════════════════════════
+// ── 입력 상태 (프레임마다 스냅샷으로만 읽음) ──
 const keys = {};
-const mobileState = { left:false, right:false, jumpPressed:false };
-const GAME_KEYS = new Set(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space','KeyA','KeyD','KeyW','KeyZ','ShiftLeft','ShiftRight']);
-document.addEventListener('keydown', e => { if(GAME_KEYS.has(e.code)) e.preventDefault(); keys[e.code]=true; }, {passive:false});
-document.addEventListener('keyup',   e => { keys[e.code]=false; });
-window.addEventListener('blur', () => { for(const k in keys) keys[k]=false; });
+// touch/mouse 상태 — left/right는 held, jump는 엣지 플래그
+const ms = { left:false, right:false, jumpPressed:false };
 
-function setupMobile() {
-  const mbl = document.getElementById('mb-left');
-  const mbr = document.getElementById('mb-right');
-  const mbj = document.getElementById('mb-jump');
+const GAME_KEYS = new Set(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',
+  'Space','KeyA','KeyD','KeyW','KeyZ','ShiftLeft','ShiftRight']);
+document.addEventListener('keydown', e=>{
+  if(GAME_KEYS.has(e.code)) e.preventDefault();
+  keys[e.code]=true;
+},{passive:false});
+document.addEventListener('keyup', e=>{ keys[e.code]=false; });
+window.addEventListener('blur', ()=>{ for(const k in keys) keys[k]=false; });
+
+function setupInput() {
   const opt = {passive:false};
-  mbl.addEventListener('touchstart', e=>{e.preventDefault();mobileState.left=true;},opt);
-  mbl.addEventListener('touchend',   e=>{e.preventDefault();mobileState.left=false;},opt);
-  mbl.addEventListener('touchcancel',e=>{e.preventDefault();mobileState.left=false;},opt);
-  mbr.addEventListener('touchstart', e=>{e.preventDefault();mobileState.right=true;},opt);
-  mbr.addEventListener('touchend',   e=>{e.preventDefault();mobileState.right=false;},opt);
-  mbr.addEventListener('touchcancel',e=>{e.preventDefault();mobileState.right=false;},opt);
-  mbj.addEventListener('touchstart', e=>{e.preventDefault();mobileState.jumpPressed=true;},opt);
-  mbj.addEventListener('touchend',   e=>{e.preventDefault();},opt);
-  mbl.addEventListener('mousedown',()=>mobileState.left=true);
-  mbl.addEventListener('mouseup',  ()=>mobileState.left=false);
-  mbr.addEventListener('mousedown',()=>mobileState.right=true);
-  mbr.addEventListener('mouseup',  ()=>mobileState.right=false);
-  mbj.addEventListener('mousedown',()=>{mobileState.jumpPressed=true;});
+
+  // ── 터치존: 화면 좌/우/점프 ──
+  function bindZone(el, onDown, onUp) {
+    el.addEventListener('touchstart', e=>{e.preventDefault();onDown();}, opt);
+    el.addEventListener('touchend',   e=>{e.preventDefault();onUp();},   opt);
+    el.addEventListener('touchcancel',e=>{e.preventDefault();onUp();},   opt);
+    el.addEventListener('mousedown',  e=>{e.preventDefault();onDown();}, opt);
+    el.addEventListener('mouseup',    e=>{e.preventDefault();onUp();},   opt);
+    el.addEventListener('mouseleave', e=>{e.preventDefault();onUp();},   opt);
+  }
+  bindZone(document.getElementById('tz-left'),
+    ()=>{ ms.left=true; },
+    ()=>{ ms.left=false; }
+  );
+  bindZone(document.getElementById('tz-right'),
+    ()=>{ ms.right=true; },
+    ()=>{ ms.right=false; }
+  );
+  // 점프존: 누른 순간만 엣지 플래그 세팅 (update()에서 소비)
+  const jz = document.getElementById('tz-jump');
+  jz.addEventListener('touchstart', e=>{e.preventDefault();ms.jumpPressed=true;}, opt);
+  jz.addEventListener('touchend',   e=>{e.preventDefault();}, opt);
+  jz.addEventListener('mousedown',  e=>{e.preventDefault();ms.jumpPressed=true;}, opt);
+  jz.addEventListener('mouseup',    e=>{e.preventDefault();}, opt);
 }
-setupMobile();
-function isLeft()  { return !!(keys['ArrowLeft'] ||keys['KeyA']||mobileState.left); }
-function isRight() { return !!(keys['ArrowRight']||keys['KeyD']||mobileState.right); }
-function isJump()  { return !!(keys['ArrowUp']||keys['Space']||keys['KeyW']||mobileState.jumpPressed); }
-function isDash()  { return !!(keys['KeyZ']||keys['ShiftLeft']||keys['ShiftRight']); }
+setupInput();
+
+// ── 프레임 스냅샷 변수 (update 시작에 딱 한 번 채움) ──
+let snap = { left:false, right:false, jumpRaw:false, jumpEdge:false, dash:false };
+let prevJumpRaw = false; // 키보드 엣지 감지용
+
+function snapshotInput() {
+  const kbLeft  = !!(keys['ArrowLeft'] ||keys['KeyA']);
+  const kbRight = !!(keys['ArrowRight']||keys['KeyD']);
+  const kbJump  = !!(keys['ArrowUp']   ||keys['Space']||keys['KeyW']);
+  const kbDash  = !!(keys['KeyZ']||keys['ShiftLeft']||keys['ShiftRight']);
+
+  snap.left    = kbLeft  || ms.left;
+  snap.right   = kbRight || ms.right;
+  snap.dash    = kbDash;
+
+  // jumpRaw: 현재 점프 버튼이 눌려 있는가 (키보드 held OR 모바일 엣지)
+  const jumpNow = kbJump || ms.jumpPressed;
+  snap.jumpRaw  = jumpNow;
+  // jumpEdge: 이번 프레임에 새로 눌린 순간 (키보드 엣지 + 모바일 엣지 통합)
+  snap.jumpEdge = (jumpNow && !prevJumpRaw) || ms.jumpPressed;
+
+  prevJumpRaw = kbJump; // 키보드만 추적 (모바일은 항상 엣지라 held 추적 불필요)
+  ms.jumpPressed = false; // 소비
+}
 
 // ════════════════════════════════════════
 //  LEVEL BUILDER
@@ -555,7 +590,7 @@ function initStage(stageIdx, keepScore) {
   player = {
     x:2*TILE, y:H-TILE*4, vx:0, vy:0, w:28, h:36,
     onGround:false, facing:1, invincible:0,
-    jumpHeld:0, coyoteFrames:0, jumpBuffer:0,
+    jumpHeld:0, coyoteFrames:0, jumpBuffer:0, airJumps:1,
     runAnim:0, dead:false, deathTimer:0,
   };
   jumpLock = false;
@@ -618,47 +653,46 @@ function update() {
       if(lives<=0){ state='gameover'; showGameOver(); return; }
       p.dead=false;
       p.x=2*TILE; p.y=H-TILE*4; p.vx=0; p.vy=0; p.invincible=120;
-      p.jumpHeld=0; p.coyoteFrames=0; p.jumpBuffer=0;
-      jumpLock=false;
+      p.jumpHeld=0; p.coyoteFrames=0; p.jumpBuffer=0; p.airJumps=1;
+      jumpLock=false; prevJumpRaw=false;
       camX=0;
     }
     return;
   }
 
-  const spd = isDash() ? 6 : 5;
-  if(isLeft())  { p.vx=Math.max(p.vx-1,-spd); p.facing=-1; }
-  if(isRight()) { p.vx=Math.min(p.vx+1, spd); p.facing= 1; }
-  if(!isLeft()&&!isRight()) p.vx*=0.75;
+  // ── 프레임 시작에 입력 한 번만 스냅샷 ──
+  snapshotInput();
 
-  // ── 점프 입력을 프레임 시작에 딱 한 번만 스냅샷 ──
-  // isJump()를 여러 번 호출하면 mobileState.jumpPressed가
-  // 중간에 소비되어 간헐적으로 씹히는 문제를 방지한다.
-  const jumpRaw = isJump();
-  // 엣지 감지: 이전 프레임에 눌리지 않았다가 이번 프레임에 눌린 순간만 "새 점프 입력"으로 인정
-  const jumpEdge = jumpRaw && !jumpLock;
-  // 모바일 플래그는 스냅샷 직후 즉시 소비 (다음 isJump() 호출에 영향 없도록)
-  mobileState.jumpPressed = false;
-  // jumpLock 갱신: 버튼이 떼어지는 순간 해제 → 다음 엣지를 즉시 감지 가능
-  jumpLock = jumpRaw;
+  // ── 이동 (snap 사용, isLeft()/isRight() 재호출 없음) ──
+  const spd = snap.dash ? 6 : 5;
+  if(snap.left)  { p.vx=Math.max(p.vx-1,-spd); p.facing=-1; }
+  if(snap.right) { p.vx=Math.min(p.vx+1, spd); p.facing= 1; }
+  if(!snap.left && !snap.right) p.vx*=0.75;
 
-  // 코요테 타임: 발판 끝에서 막 떨어진 직후 몇 프레임간 점프 허용
-  if(p.onGround) p.coyoteFrames = 6;
-  else if(p.coyoteFrames > 0) p.coyoteFrames--;
+  // ── 코요테 타임 ──
+  if(p.onGround) { p.coyoteFrames=6; p.airJumps=1; } // 착지 시 더블점프 리셋
+  else if(p.coyoteFrames>0) p.coyoteFrames--;
 
-  // 점프 버퍼: 공중에서 점프 키를 미리 눌러도 착지 직후 자동 점프
-  if(jumpEdge) p.jumpBuffer = 8;
-  else if(p.jumpBuffer > 0) p.jumpBuffer--;
+  // ── 점프 버퍼 (착지 직전 미리 눌러도 점프됨) ──
+  if(snap.jumpEdge) p.jumpBuffer=8;
+  else if(p.jumpBuffer>0) p.jumpBuffer--;
 
-  // 실제 점프 실행: 버퍼가 남아 있고 코요테 타임 내에 있으면 점프
-  if(p.jumpBuffer > 0 && p.coyoteFrames > 0) {
-    p.vy = JUMP_F;
-    p.jumpHeld = 14;
-    p.jumpBuffer = 0;
-    p.coyoteFrames = 0;
+  // ── 점프 실행 ──
+  if(snap.jumpEdge) {
+    if(p.coyoteFrames>0) {
+      // 1단 점프 (지상 or 코요테)
+      p.vy=JUMP_F; p.jumpHeld=14;
+      p.jumpBuffer=0; p.coyoteFrames=0;
+    } else if(p.airJumps>0) {
+      // 2단 점프 (공중)
+      p.vy=JUMP_F*0.88; p.jumpHeld=10;
+      p.airJumps--;
+      spawnParticle(p.x+p.w/2, p.y+p.h, '#C84B8F', 8); // 더블점프 파티클
+    }
   }
-  // 버튼 유지 → 상승력 추가 (높이 조절)
-  if(jumpRaw && p.jumpHeld > 0) { p.vy -= 0.45; p.jumpHeld--; }
-  else if(!jumpRaw) p.jumpHeld = 0;
+  // 버튼 유지 → 상승력 추가
+  if(snap.jumpRaw && p.jumpHeld>0) { p.vy-=0.45; p.jumpHeld--; }
+  else if(!snap.jumpRaw) p.jumpHeld=0;
 
   p.vy=Math.min(p.vy+GRAVITY,18);
   p.x+=p.vx; p.y+=p.vy;
@@ -666,14 +700,12 @@ function update() {
   const rect={x:p.x,y:p.y,w:p.w,h:p.h};
   const col=tileCollide(rect,level.tiles);
   p.x=rect.x; p.y=rect.y;
-  // onGround는 반드시 콜리전 처리 이후에 갱신해야
-  // "이 프레임에 착지한 순간"도 정확히 잡힌다
-  p.onGround=col.bottom;
+  p.onGround=col.bottom; // 콜리전 이후 갱신
   if(col.top&&p.vy<0) p.vy=1;
   if(col.bottom) p.vy=0;
   if(p.x<0) p.x=0;
   if(p.y>H+120){ killPlayer(); return; }
-  if(p.onGround&&(isLeft()||isRight())) p.runAnim+=Math.abs(p.vx)*0.15;
+  if(p.onGround&&(snap.left||snap.right)) p.runAnim+=Math.abs(p.vx)*0.15;
   if(p.invincible>0) p.invincible--;
 
   // Coins
@@ -1109,15 +1141,21 @@ function showStageClear(nextIdx) {
   if(animFrame) cancelAnimationFrame(animFrame);
   const def=STAGE_DEFS[currentStage];
   const isLast=nextIdx>=STAGE_DEFS.length;
+
+  if(isLast) {
+    // ── 풀 엔딩 씬 ──
+    document.getElementById('overlay').style.display='none';
+    state='ending';
+    startEndingScene();
+    return;
+  }
+
   const ov=document.getElementById('overlay');
   ov.innerHTML=`
-    <h1>${isLast?'🏆 전설 달성!':'🌺 Stage ${def.id} 클리어!'}</h1>
-    <p>${isLast
-      ? `모든 스테이지를 완료했습니다!\n최종 점수: ${score}`
-      : `${def.name} 완료!\n현재 점수: ${score}\n\n다음: ${STAGE_DEFS[nextIdx].emoji} ${STAGE_DEFS[nextIdx].name}`
-    }</p>
-    ${!isLast?`<button id="start-btn" onclick="continueToNext(${nextIdx})">다음 스테이지 ➡️</button>`:''}
-    <button id="start-btn" style="background:linear-gradient(135deg,#5C2D00,#3D1C02);color:#D4A017;margin-top:${isLast?0:8}px;font-size:13px;padding:8px 28px" onclick="showStageSelect()">스테이지 선택</button>
+    <h1>🌺 Stage ${def.id} 클리어!</h1>
+    <p>${def.name} 완료!<br>현재 점수: ${score}<br><br>다음: ${STAGE_DEFS[nextIdx].emoji} ${STAGE_DEFS[nextIdx].name}</p>
+    <button id="start-btn" onclick="continueToNext(${nextIdx})">다음 스테이지 ➡️</button>
+    <button id="start-btn" style="background:linear-gradient(135deg,#5C2D00,#3D1C02);color:#D4A017;margin-top:8px;font-size:13px;padding:8px 28px" onclick="showStageSelect()">스테이지 선택</button>
   `;
   ov.style.display='flex';
 }
@@ -1141,6 +1179,260 @@ function showGameOver() {
   `;
   ov.style.display='flex';
 }
+
+// ════════════════════════════════════════
+//  ENDING SCENE
+// ════════════════════════════════════════
+let endingT = 0;
+let endingFrame;
+
+function startEndingScene() {
+  endingT = 0;
+  function endLoop() {
+    if(state !== 'ending') return;
+    endingFrame = requestAnimationFrame(endLoop);
+    drawEnding(endingT);
+    endingT++;
+  }
+  endLoop();
+}
+
+function drawEnding(t) {
+  // ── 배경 ──
+  const bgGrad = ctx.createLinearGradient(0,0,0,H);
+  bgGrad.addColorStop(0,'#0A0030');
+  bgGrad.addColorStop(0.5,'#1A005A');
+  bgGrad.addColorStop(1,'#3A0080');
+  ctx.fillStyle=bgGrad; ctx.fillRect(0,0,W,H);
+
+  // 별빛
+  ctx.save();
+  for(let i=0;i<80;i++) {
+    const sx = (i*137)%W;
+    const sy = (i*91)%( H*0.65);
+    const alpha = 0.4+0.6*Math.abs(Math.sin(t*0.03+i));
+    ctx.fillStyle=`rgba(255,240,200,${alpha})`;
+    ctx.beginPath(); ctx.arc(sx,sy,1+Math.sin(i)*0.7,0,Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+
+  // 사원 실루엣
+  ctx.fillStyle='rgba(60,0,120,0.7)';
+  for(let i=0;i<5;i++) {
+    const tx=60+i*160, ty=H-80;
+    ctx.fillRect(tx-20,ty-90,40,90);
+    ctx.fillRect(tx-28,ty-105,56,18);
+    ctx.fillRect(tx-18,ty-120,36,18);
+    ctx.fillRect(tx-10,ty-136,20,18);
+    ctx.fillRect(tx-4,ty-150,8,16);
+  }
+
+  // 연꽃 조명
+  const lotus1X=W/2-120, lotus2X=W/2+120, lotusY=H-55;
+  for(const [lx,ly] of [[lotus1X,lotusY],[lotus2X,lotusY]]) {
+    ctx.save();
+    ctx.globalAlpha=0.5+0.3*Math.sin(t*0.04);
+    ctx.shadowBlur=30; ctx.shadowColor='#FF80CF';
+    for(let a=0;a<6;a++) {
+      ctx.save(); ctx.translate(lx,ly); ctx.rotate(a/6*Math.PI*2+t*0.01);
+      ctx.fillStyle='#C84B8F';
+      ctx.beginPath(); ctx.ellipse(0,-14,6,14,0,0,Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+    ctx.fillStyle='#FFD700';
+    ctx.beginPath(); ctx.arc(lx,ly,8,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  // ── 주인공 (왼쪽) ──
+  // 등장 애니메이션: 처음 60프레임 동안 걸어들어옴
+  const heroX = t<60 ? Math.min(W*0.28, 80 + t*3.5) : W*0.28;
+  const heroY = H-90;
+  const heroRun = Math.sin(t*0.25)*6;
+  ctx.save(); ctx.translate(heroX, heroY);
+  // 다리
+  ctx.fillStyle='#FFFFFF';
+  ctx.fillRect(-8,10,7, t<60?14+heroRun:14);
+  ctx.fillRect(1, 10,7, t<60?14-heroRun:14);
+  // 몸
+  ctx.fillStyle='#E8891A';
+  ctx.fillRect(-10,-10,20,22);
+  // 팔 (환호)
+  const armUp = t>60 ? Math.min(-20,(t-60)*-0.6) : 0;
+  ctx.fillStyle='#D4884A';
+  ctx.fillRect(-16,-8+armUp,8,5);
+  ctx.fillRect(8,-8+armUp,8,5);
+  // 머리
+  ctx.fillStyle='#D4884A';
+  ctx.beginPath(); ctx.arc(0,-16,11,0,Math.PI*2); ctx.fill();
+  // 우덩
+  ctx.fillStyle='#D4A017';
+  ctx.fillRect(-11,-24,22,7);
+  ctx.fillStyle='#E8891A';
+  ctx.beginPath(); ctx.moveTo(-4,-24); ctx.lineTo(0,-34); ctx.lineTo(4,-24); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#000';
+  ctx.beginPath(); ctx.arc(4,-17,2,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  // ── 공주 (오른쪽) ──
+  // 등장: 60프레임 이후 오른쪽에서 등장
+  const princessX = t<80 ? Math.max(W*0.62, W+60-(t<60?0:(t-60)*5)) : W*0.62;
+  const princessY = H-100;
+  const pBob = Math.sin(t*0.05)*4;
+  ctx.save(); ctx.translate(princessX, princessY+pBob);
+
+  // 드레스 (발리 전통 kebaya)
+  const dressGrad = ctx.createLinearGradient(0,0,0,60);
+  dressGrad.addColorStop(0,'#FF80CF');
+  dressGrad.addColorStop(1,'#8B2060');
+  ctx.fillStyle=dressGrad;
+  ctx.beginPath();
+  ctx.moveTo(-18,0); ctx.lineTo(-22,60); ctx.lineTo(22,60); ctx.lineTo(18,0);
+  ctx.closePath(); ctx.fill();
+  // 금색 허리띠
+  ctx.fillStyle='#FFD700';
+  ctx.fillRect(-16,18,32,6);
+  // 상체
+  ctx.fillStyle='#FF80CF';
+  ctx.fillRect(-12,-14,24,18);
+  // 팔
+  ctx.fillStyle='#D4884A';
+  const pArmL = Math.sin(t*0.04)*10;
+  ctx.fillRect(-20,-10,10,6);
+  ctx.fillRect(10,-10+pArmL,10,6);
+  // 머리
+  ctx.fillStyle='#3A1A00';
+  ctx.beginPath(); ctx.arc(0,-26,14,0,Math.PI*2); ctx.fill();
+  // 얼굴
+  ctx.fillStyle='#D4884A';
+  ctx.beginPath(); ctx.arc(0,-24,11,0,Math.PI*2); ctx.fill();
+  // 눈
+  ctx.fillStyle='#000';
+  ctx.beginPath(); ctx.arc(-4,-25,2,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(4,-25,2,0,Math.PI*2); ctx.fill();
+  // 미소
+  ctx.strokeStyle='#5A1A00'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(0,-20,5,0.2,Math.PI-0.2); ctx.stroke();
+  // 왕관 (순라 마하꼬따)
+  ctx.fillStyle='#FFD700';
+  ctx.fillRect(-14,-40,28,10);
+  for(let i=0;i<5;i++) {
+    ctx.beginPath(); ctx.moveTo(-12+i*6,-40); ctx.lineTo(-10+i*6,-52); ctx.lineTo(-8+i*6,-40); ctx.fill();
+  }
+  ctx.fillStyle='#FF4488';
+  ctx.beginPath(); ctx.arc(0,-50,4,0,Math.PI*2); ctx.fill();
+  // 발리 머리장식 꽃
+  for(let a=0;a<5;a++) {
+    ctx.save(); ctx.translate(-14,(-36));
+    ctx.rotate(a/5*Math.PI*2);
+    ctx.fillStyle=a%2===0?'#FFD700':'#FF80CF';
+    ctx.beginPath(); ctx.ellipse(0,-7,3,7,0,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+
+  // ── 하트 파티클 ──
+  if(t>80) {
+    const ht=t-80;
+    for(let i=0;i<6;i++) {
+      const hx = W/2 + Math.sin(ht*0.05+i*1.05)*120;
+      const hy = H*0.3 - (ht*0.8 + i*40)%(H*0.6);
+      const ha = Math.max(0, 1-(ht%80)/80);
+      ctx.save();
+      ctx.globalAlpha=ha*0.9;
+      ctx.fillStyle=i%2===0?'#FF80CF':'#FFD700';
+      ctx.font=`${18+i*3}px serif`;
+      ctx.fillText(i%3===0?'❤':'🌺', hx, hy);
+      ctx.restore();
+    }
+  }
+
+  // ── 텍스트 ──
+  const textAlpha = Math.min(1,(t-40)/40);
+  if(t>40) {
+    ctx.save();
+    ctx.globalAlpha=textAlpha;
+
+    // 제목
+    ctx.font='bold 36px "Cinzel Decorative",cursive';
+    ctx.textAlign='center';
+    ctx.fillStyle='#FFD700';
+    ctx.shadowBlur=20; ctx.shadowColor='#FF80CF';
+    ctx.fillText('🏆 전설 달성! 🏆', W/2, 70);
+
+    ctx.shadowBlur=0;
+    ctx.font='bold 18px Nunito,sans-serif';
+    ctx.fillStyle='#F5E6C8';
+    ctx.fillText('발리의 공주가 당신의 용기에 감사합니다!', W/2, 115);
+
+    ctx.font='bold 20px Nunito,sans-serif';
+    ctx.fillStyle='#FFD700';
+    ctx.fillText(`최종 점수: ${score}`, W/2, 148);
+
+    // 대화 버블 (t>120)
+    if(t>120) {
+      const bubbleAlpha=Math.min(1,(t-120)/30);
+      ctx.globalAlpha=textAlpha*bubbleAlpha;
+      ctx.fillStyle='rgba(255,255,255,0.13)';
+      ctx.strokeStyle='#FFD700'; ctx.lineWidth=2;
+      ctx.beginPath();
+      ctx.roundRect(W*0.55, H-195, 200, 54, 12);
+      ctx.fill(); ctx.stroke();
+      // 꼬리
+      ctx.fillStyle='rgba(255,255,255,0.13)';
+      ctx.beginPath();
+      ctx.moveTo(W*0.55+20,H-142); ctx.lineTo(W*0.62-10,H-120); ctx.lineTo(W*0.55+50,H-142);
+      ctx.fill();
+      ctx.fillStyle='#F5E6C8';
+      ctx.font='bold 13px Nunito,sans-serif';
+      ctx.fillText('당신은 진정한 발리의',  W*0.55+100, H-172);
+      ctx.fillStyle='#FFD700';
+      ctx.font='bold 15px Nunito,sans-serif';
+      ctx.fillText('수호 영웅입니다! 🌺', W*0.55+100, H-152);
+    }
+    ctx.restore();
+  }
+
+  // ── 버튼 (t>160) ──
+  if(t>160) {
+    const btnAlpha=Math.min(1,(t-160)/30);
+    ctx.save();
+    ctx.globalAlpha=btnAlpha;
+    const bx=W/2-100, by=H-44, bw=200, bh=36;
+    const btnGrad=ctx.createLinearGradient(bx,by,bx+bw,by);
+    btnGrad.addColorStop(0,'#E8891A'); btnGrad.addColorStop(1,'#D4A017');
+    ctx.fillStyle=btnGrad;
+    ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,18); ctx.fill();
+    ctx.fillStyle='#3D1C02';
+    ctx.font='bold 15px "Cinzel Decorative",cursive';
+    ctx.textAlign='center';
+    ctx.fillText('처음부터 다시 🌺', W/2, by+24);
+    ctx.restore();
+
+    // 클릭/터치 감지
+    if(!endingClickBound) {
+      endingClickBound=true;
+      function endingClick(e) {
+        const rect=canvas.getBoundingClientRect();
+        const cx=(e.clientX??e.touches[0].clientX)-rect.left;
+        const cy=(e.clientY??e.touches[0].clientY)-rect.top;
+        const scaleX=W/rect.width, scaleY=H/rect.height;
+        const gx=cx*scaleX, gy=cy*scaleY;
+        if(gx>bx&&gx<bx+bw&&gy>by&&gy<by+bh) {
+          canvas.removeEventListener('click',endingClick);
+          canvas.removeEventListener('touchstart',endingClick);
+          endingClickBound=false;
+          state='title';
+          cancelAnimationFrame(endingFrame);
+          showStageSelect();
+        }
+      }
+      canvas.addEventListener('click',endingClick);
+      canvas.addEventListener('touchstart',endingClick);
+    }
+  }
+}
+let endingClickBound=false;
 
 function drawTitleScreen() {
   ctx.clearRect(0,0,W,H);
