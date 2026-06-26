@@ -103,10 +103,11 @@
 </div>
 <div id="canvas-wrap" style="position:relative;display:inline-block;line-height:0;">
   <canvas id="game-canvas" width="800" height="450"></canvas>
-  <div id="tz-left"  style="position:absolute;left:0;top:0;width:35%;height:100%;z-index:5;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:none;"></div>
-  <div id="tz-right" style="position:absolute;right:0;top:0;width:35%;height:100%;z-index:5;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:none;"></div>
-  <div id="tz-jump"  style="position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:6;width:64px;height:64px;border-radius:50%;border:2px solid rgba(212,160,23,0.7);background:rgba(212,160,23,0.18);color:#F5E6C8;font-size:26px;display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:none;">↑</div>
+  <div id="tz-left"  style="position:absolute;left:0;top:0;width:40%;height:100%;z-index:5;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:none;"></div>
+  <div id="tz-right" style="position:absolute;right:0;top:0;width:40%;height:100%;z-index:5;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:none;"></div>
 </div>
+<!-- 점프 버튼: canvas 아래 중앙 -->
+<div id="tz-jump" style="margin-top:8px;width:64px;height:64px;border-radius:50%;border:2px solid rgba(212,160,23,0.8);background:rgba(212,160,23,0.22);color:#F5E6C8;font-size:26px;display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:none;align-self:center;">↑</div>
 <div id="controls">
   <span class="ctrl-key">← → 이동 (화면 좌우 터치)</span>
   <span class="ctrl-key">↑ / Space 점프</span>
@@ -204,25 +205,25 @@ const STAGE_DEFS = [
     coinBonus: 150,
     goalX: 115,
     scoreBonus: 800,
-    gaps: [[12,15],[30,33],[50,53],[70,73]],
+    gaps: [[13,16],[31,35],[52,56],[72,76]],
     extraPlats: [
-      [2,5,3],[6,8,2],[10,5,3],[16,7,3],[20,5,4],
-      [25,9,2],[28,6,3],[34,4,4],[38,8,3],
-      [42,6,3],[47,10,3],[54,6,4],[58,4,3],
-      [63,8,3],[67,5,4],[74,9,3],[78,6,4],[84,7,3],[88,5,4],
+      [2,5,2],[6,8,2],[10,5,2],[17,7,2],[21,5,3],
+      [26,9,2],[29,6,2],[36,4,3],[39,8,2],
+      [43,6,2],[48,10,2],[57,6,3],[59,4,2],
+      [64,8,2],[68,5,3],[77,9,2],[79,6,3],[85,7,2],[89,5,3],
     ],
     enemies: [
-      {tx:4,  ty:2, patrol:[2,11],  spd:1.3},
-      {tx:9,  ty:5, patrol:[6,11],  spd:1.3},
-      {tx:18, ty:2, patrol:[16,22], spd:1.3},
-      {tx:24, ty:2, patrol:[20,29], spd:1.3},
-      {tx:36, ty:2, patrol:[34,42], spd:1.3},
-      {tx:44, ty:6, patrol:[42,49], spd:1.5},
-      {tx:56, ty:2, patrol:[54,62], spd:1.3},
-      {tx:65, ty:2, patrol:[63,69], spd:1.5},
-      {tx:76, ty:2, patrol:[74,80], spd:1.3},
-      {tx:86, ty:2, patrol:[84,92], spd:1.5},
-      {tx:90, ty:7, patrol:[88,94], spd:1.3},
+      {tx:4,  ty:2, patrol:[2,12],  spd:1.6},
+      {tx:9,  ty:5, patrol:[6,12],  spd:1.8},
+      {tx:18, ty:2, patrol:[17,22], spd:1.6},
+      {tx:24, ty:2, patrol:[21,30], spd:1.8},
+      {tx:37, ty:2, patrol:[36,43], spd:1.6},
+      {tx:44, ty:6, patrol:[43,50], spd:1.9},
+      {tx:58, ty:2, patrol:[57,63], spd:1.6},
+      {tx:65, ty:2, patrol:[64,70], spd:1.9},
+      {tx:78, ty:2, patrol:[77,81], spd:1.6},
+      {tx:86, ty:2, patrol:[85,93], spd:1.9},
+      {tx:90, ty:7, patrol:[89,95], spd:1.6},
     ],
     coinRows: [
       [3,8],[4,8],[5,8],[7,11],[8,11],
@@ -259,25 +260,25 @@ const STAGE_DEFS = [
     scoreBonus: 1200,
     gaps: [[10,14],[25,29],[40,45],[55,59],[72,77],[90,94]],
     extraPlats: [
-      [2,5,2],[5,8,2],[8,5,2],[15,7,2],[18,5,3],
-      [22,9,2],[26,6,2],[30,4,3],[34,8,2],
-      [38,6,2],[42,10,2],[46,6,3],[50,4,2],
-      [56,8,2],[60,5,3],[64,9,2],[68,6,3],[73,10,2],[78,6,2],[82,8,2],[86,5,3],[91,7,2],[95,4,3],
+      [2,5,1],[5,8,1],[8,5,2],[15,7,1],[18,5,2],
+      [22,9,1],[27,6,2],[31,4,2],[35,8,1],
+      [39,6,1],[43,10,1],[47,6,2],[51,4,1],
+      [57,8,1],[61,5,2],[65,9,1],[69,6,2],[74,10,1],[79,6,1],[83,8,1],[87,5,2],[92,7,1],[96,4,2],
     ],
     enemies: [
-      {tx:3,  ty:2, patrol:[2,9],   spd:1.6},
-      {tx:7,  ty:5, patrol:[5,9],   spd:1.8},
-      {tx:16, ty:2, patrol:[15,22], spd:1.6},
-      {tx:19, ty:5, patrol:[18,24], spd:1.8},
-      {tx:31, ty:2, patrol:[30,38], spd:1.6},
-      {tx:35, ty:8, patrol:[34,38], spd:2.0},
-      {tx:47, ty:2, patrol:[46,54], spd:1.6},
-      {tx:50, ty:4, patrol:[46,54], spd:1.8},
-      {tx:61, ty:2, patrol:[60,70], spd:1.6},
-      {tx:66, ty:9, patrol:[64,70], spd:2.0},
-      {tx:79, ty:2, patrol:[78,88], spd:1.6},
-      {tx:84, ty:8, patrol:[82,88], spd:1.8},
-      {tx:92, ty:2, patrol:[91,97], spd:2.0},
+      {tx:3,  ty:2, patrol:[2,9],   spd:2.0},
+      {tx:7,  ty:5, patrol:[5,9],   spd:2.2},
+      {tx:16, ty:2, patrol:[15,22], spd:2.0},
+      {tx:19, ty:5, patrol:[18,24], spd:2.3},
+      {tx:31, ty:2, patrol:[30,38], spd:2.0},
+      {tx:35, ty:8, patrol:[34,38], spd:2.4},
+      {tx:47, ty:2, patrol:[46,54], spd:2.0},
+      {tx:50, ty:4, patrol:[46,54], spd:2.3},
+      {tx:61, ty:2, patrol:[60,70], spd:2.0},
+      {tx:66, ty:9, patrol:[64,70], spd:2.5},
+      {tx:79, ty:2, patrol:[78,88], spd:2.0},
+      {tx:84, ty:8, patrol:[82,88], spd:2.3},
+      {tx:92, ty:2, patrol:[91,97], spd:2.5},
     ],
     coinRows: [
       [3,8],[4,8],[6,11],[7,11],
@@ -325,26 +326,26 @@ const STAGE_DEFS = [
       [90,4,1],[92,9,1],[94,6,2],[97,4,1],[99,8,1],[102,5,2],[105,4,2],
     ],
     enemies: [
-      {tx:3,  ty:2, patrol:[2,7],   spd:2.0},
-      {tx:5,  ty:5, patrol:[4,7],   spd:2.2},
-      {tx:12, ty:2, patrol:[11,19], spd:2.0},
-      {tx:15, ty:8, patrol:[14,19], spd:2.4},
-      {tx:27, ty:2, patrol:[26,32], spd:2.0},
-      {tx:29, ty:9, patrol:[28,32], spd:2.2},
-      {tx:35, ty:4, patrol:[34,40], spd:2.4},
-      {tx:37, ty:8, patrol:[36,39], spd:2.0},
-      {tx:43, ty:2, patrol:[40,47], spd:2.2},
-      {tx:46, ty:6, patrol:[44,47], spd:2.4},
-      {tx:52, ty:2, patrol:[49,61], spd:2.0},
-      {tx:56, ty:7, patrol:[54,61], spd:2.2},
-      {tx:64, ty:4, patrol:[63,77], spd:2.0},
-      {tx:68, ty:9, patrol:[67,77], spd:2.4},
-      {tx:72, ty:2, patrol:[70,77], spd:2.2},
-      {tx:82, ty:2, patrol:[79,95], spd:2.0},
-      {tx:86, ty:5, patrol:[85,95], spd:2.4},
-      {tx:91, ty:2, patrol:[90,95], spd:2.2},
-      {tx:98, ty:4, patrol:[97,106],spd:2.4},
-      {tx:103,ty:2, patrol:[100,106],spd:2.0},
+      {tx:3,  ty:2, patrol:[2,7],   spd:2.5},
+      {tx:5,  ty:5, patrol:[4,7],   spd:2.8},
+      {tx:12, ty:2, patrol:[11,19], spd:2.5},
+      {tx:15, ty:8, patrol:[14,19], spd:3.0},
+      {tx:27, ty:2, patrol:[26,32], spd:2.5},
+      {tx:29, ty:9, patrol:[28,32], spd:2.8},
+      {tx:35, ty:4, patrol:[34,40], spd:3.0},
+      {tx:37, ty:8, patrol:[36,39], spd:2.5},
+      {tx:43, ty:2, patrol:[40,47], spd:2.8},
+      {tx:46, ty:6, patrol:[44,47], spd:3.0},
+      {tx:52, ty:2, patrol:[49,61], spd:2.5},
+      {tx:56, ty:7, patrol:[54,61], spd:2.8},
+      {tx:64, ty:4, patrol:[63,77], spd:2.5},
+      {tx:68, ty:9, patrol:[67,77], spd:3.0},
+      {tx:72, ty:2, patrol:[70,77], spd:2.8},
+      {tx:82, ty:2, patrol:[79,95], spd:2.5},
+      {tx:86, ty:5, patrol:[85,95], spd:3.0},
+      {tx:91, ty:2, patrol:[90,95], spd:2.8},
+      {tx:98, ty:4, patrol:[97,106],spd:3.0},
+      {tx:103,ty:2, patrol:[100,106],spd:2.5},
     ],
     coinRows: [
       [3,8],[5,11],[7,8],[10,12],[12,9],
@@ -685,7 +686,7 @@ function update() {
       p.jumpBuffer=0; p.coyoteFrames=0;
     } else if(p.airJumps>0) {
       // 2단 점프 (공중)
-      p.vy=JUMP_F*0.88; p.jumpHeld=10;
+      p.vy=JUMP_F*0.72; p.jumpHeld=7;
       p.airJumps--;
       spawnParticle(p.x+p.w/2, p.y+p.h, '#C84B8F', 8); // 더블점프 파티클
     }
@@ -704,6 +705,8 @@ function update() {
   if(col.top&&p.vy<0) p.vy=1;
   if(col.bottom) p.vy=0;
   if(p.x<0) p.x=0;
+  // 화면 상단 돌파 방지
+  if(p.y<0){ p.y=0; p.vy=0; p.jumpHeld=0; }
   if(p.y>H+120){ killPlayer(); return; }
   if(p.onGround&&(snap.left||snap.right)) p.runAnim+=Math.abs(p.vx)*0.15;
   if(p.invincible>0) p.invincible--;
