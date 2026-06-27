@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
 <title>🌺 Bali Quest - 발리 마리오</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Nunito:wght@400;700;900&display=swap');
@@ -11,33 +11,62 @@
     --shadow:#3D1C02; --lotus:#C84B8F;
   }
   * { margin:0; padding:0; box-sizing:border-box; }
+
+  /* ── 전체화면 레이아웃 (가로/세로 모두 꽉 채움) ── */
+  html, body { width:100%; height:100%; overflow:hidden; }
   body {
-    background:var(--shadow);
+    background:#000;
     display:flex; flex-direction:column; align-items:center; justify-content:center;
-    min-height:100vh; font-family:'Nunito',sans-serif; overflow:hidden; user-select:none;
+    font-family:'Nunito',sans-serif; user-select:none; touch-action:none;
   }
+
+  /* 게임 컨테이너: 화면 비율 유지하며 꽉 채움 */
+  #game-root {
+    display:flex; flex-direction:column; align-items:center;
+    width:100vw; height:100vh; max-width:100vw; max-height:100vh;
+    justify-content:center;
+  }
+
   #ui-bar {
-    width:800px; max-width:100vw;
+    width:100%; max-width:800px;
     display:flex; justify-content:space-between; align-items:center;
-    padding:6px 16px;
+    padding:4px 12px;
     background:linear-gradient(135deg,var(--shadow) 0%,#5C2D00 100%);
-    border:2px solid var(--gold); border-bottom:none; border-radius:12px 12px 0 0;
+    border:2px solid var(--gold); border-bottom:none; border-radius:8px 8px 0 0;
+    flex-shrink:0;
   }
   .ui-block { display:flex; flex-direction:column; align-items:center; gap:1px; }
-  .ui-label { font-size:9px; color:var(--gold); letter-spacing:2px; text-transform:uppercase; }
-  .ui-val   { font-size:18px; font-weight:900; color:var(--rice); font-family:'Cinzel Decorative',cursive; }
+  .ui-label { font-size:8px; color:var(--gold); letter-spacing:2px; text-transform:uppercase; }
+  .ui-val   { font-size:15px; font-weight:900; color:var(--rice); font-family:'Cinzel Decorative',cursive; }
   #stage-badge {
     background:linear-gradient(135deg,var(--lotus),#8B2060);
     border:2px solid var(--gold); border-radius:20px;
-    padding:3px 14px; font-size:13px; font-weight:900;
+    padding:2px 10px; font-size:11px; font-weight:900;
     color:var(--rice); letter-spacing:1px;
   }
-  #game-canvas { display:block; border:3px solid var(--gold); border-top:none; border-radius:0 0 8px 8px; image-rendering:pixelated; cursor:none; }
-  #controls { margin-top:8px; display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+
+  #canvas-wrap {
+    position:relative; flex-shrink:0;
+    line-height:0; width:100%; max-width:800px;
+  }
+
+  #game-canvas {
+    display:block; width:100%; height:auto;
+    border:2px solid var(--gold); border-top:none;
+    border-radius:0 0 6px 6px; image-rendering:pixelated; cursor:none;
+  }
+
+  /* 터치 힌트 (데스크톱만 표시) */
+  #controls { margin-top:6px; display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
   .ctrl-key {
     background:linear-gradient(180deg,#5C3A1E 0%,var(--shadow) 100%);
-    border:2px solid var(--gold); border-radius:6px; padding:3px 9px;
-    color:var(--rice); font-size:11px; font-family:'Nunito',sans-serif; font-weight:700;
+    border:2px solid var(--gold); border-radius:6px; padding:2px 8px;
+    color:var(--rice); font-size:10px; font-family:'Nunito',sans-serif; font-weight:700;
+  }
+
+  /* 모바일: 힌트 숨김 */
+  @media (pointer:coarse) {
+    #controls { display:none; }
   }
   #overlay {
     position:fixed; inset:0; background:rgba(20,8,0,0.92);
@@ -71,22 +100,13 @@
   }
   #start-btn:hover { transform:scale(1.05); box-shadow:0 6px 28px rgba(232,137,26,0.7); }
   #start-btn:active { transform:scale(0.97); }
-  .mobile-btns {
-    display:none; margin-top:10px; gap:14px; justify-content:center; align-items:center;
+  /* 터치 힌트 아이콘 */
+  .touch-hint {
+    position:absolute; pointer-events:none; opacity:0.18; font-size:32px;
+    bottom:12px; font-family:sans-serif;
   }
-  .mb {
-    width:54px; height:54px; background:rgba(212,160,23,0.2);
-    border:2px solid var(--gold); border-radius:50%; color:var(--rice); font-size:20px;
-    display:flex; align-items:center; justify-content:center;
-    cursor:pointer; -webkit-tap-highlight-color:transparent; touch-action:manipulation;
-  }
-  .mb:active { background:rgba(212,160,23,0.5); }
-  @media (max-width:820px) {
-    #ui-bar { width:100vw; }
-    #game-canvas { width:100vw; height:auto; }
-    .mobile-btns { display:flex; }
-    .ctrl-key { display:none; }
-  }
+  #hint-left  { left:8%; }
+  #hint-right { right:8%; }
 
   /* ── Firebase / Ranking UI ── */
   #nickname-overlay {
@@ -160,6 +180,7 @@
 </style>
 </head>
 <body>
+<div id="game-root">
 <div id="ui-bar">
   <div class="ui-block">
     <span class="ui-label">점수</span>
@@ -171,18 +192,22 @@
     <span class="ui-val" id="lives-el">❤️❤️❤️</span>
   </div>
 </div>
-<div id="canvas-wrap" style="position:relative;display:inline-block;line-height:0;">
+<div id="canvas-wrap">
   <canvas id="game-canvas" width="800" height="450"></canvas>
-  <div id="tz-left"  style="position:absolute;left:0;top:0;width:40%;height:100%;z-index:5;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:none;"></div>
-  <div id="tz-right" style="position:absolute;right:0;top:0;width:40%;height:100%;z-index:5;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:none;"></div>
+  <!-- 터치 좌/우: 화면 절반씩 꾹 누르면 이동, 나머지 20%는 둘 다 해당 없음(점프 전용) -->
+  <div id="tz-left"  style="position:absolute;left:0;top:0;width:40%;height:100%;z-index:5;-webkit-tap-highlight-color:transparent;touch-action:none;"></div>
+  <div id="tz-right" style="position:absolute;right:0;top:0;width:40%;height:100%;z-index:5;-webkit-tap-highlight-color:transparent;touch-action:none;"></div>
+  <!-- 좌/우 힌트 아이콘 -->
+  <div class="touch-hint" id="hint-left">◀</div>
+  <div class="touch-hint" id="hint-right">▶</div>
 </div>
-<!-- 점프 버튼: canvas 아래 중앙 -->
-<div id="tz-jump" style="margin-top:8px;width:64px;height:64px;border-radius:50%;border:2px solid rgba(212,160,23,0.8);background:rgba(212,160,23,0.22);color:#F5E6C8;font-size:26px;display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:none;align-self:center;">↑</div>
+
 <div id="controls">
-  <span class="ctrl-key">← → 이동 (화면 좌우 터치)</span>
-  <span class="ctrl-key">↑ / Space 점프</span>
+  <span class="ctrl-key">← → 이동</span>
+  <span class="ctrl-key">↑ / Space / 화면터치 점프</span>
   <span class="ctrl-key">Z 대시</span>
 </div>
+</div><!-- #game-root -->
 <div id="overlay">
   <h1>🌺<br>Bali Quest</h1>
   <p>발리의 신성한 여정을 시작하라!<br>스테이지를 선택하세요.</p>
@@ -541,30 +566,33 @@ window.addEventListener('blur', ()=>{ for(const k in keys) keys[k]=false; });
 
 function setupInput() {
   const opt = {passive:false};
+  const tzL = document.getElementById('tz-left');
+  const tzR = document.getElementById('tz-right');
 
-  // ── 터치존: 화면 좌/우/점프 ──
-  function bindZone(el, onDown, onUp) {
-    el.addEventListener('touchstart', e=>{e.preventDefault();onDown();}, opt);
-    el.addEventListener('touchend',   e=>{e.preventDefault();onUp();},   opt);
-    el.addEventListener('touchcancel',e=>{e.preventDefault();onUp();},   opt);
-    el.addEventListener('mousedown',  e=>{e.preventDefault();onDown();}, opt);
-    el.addEventListener('mouseup',    e=>{e.preventDefault();onUp();},   opt);
-    el.addEventListener('mouseleave', e=>{e.preventDefault();onUp();},   opt);
+  // ── 좌/우 이동존: 꾹 누르는 동안 held ──
+  function bindMove(el, side) {
+    el.addEventListener('touchstart', e=>{e.preventDefault(); ms[side]=true;  ms.jumpPressed=true;}, opt);
+    el.addEventListener('touchend',   e=>{e.preventDefault(); ms[side]=false;}, opt);
+    el.addEventListener('touchcancel',e=>{e.preventDefault(); ms[side]=false;}, opt);
+    el.addEventListener('mousedown',  e=>{e.preventDefault(); ms[side]=true;  ms.jumpPressed=true;}, opt);
+    el.addEventListener('mouseup',    e=>{e.preventDefault(); ms[side]=false;}, opt);
+    el.addEventListener('mouseleave', e=>{e.preventDefault(); ms[side]=false;}, opt);
   }
-  bindZone(document.getElementById('tz-left'),
-    ()=>{ ms.left=true; },
-    ()=>{ ms.left=false; }
-  );
-  bindZone(document.getElementById('tz-right'),
-    ()=>{ ms.right=true; },
-    ()=>{ ms.right=false; }
-  );
-  // 점프존: 누른 순간만 엣지 플래그 세팅 (update()에서 소비)
-  const jz = document.getElementById('tz-jump');
-  jz.addEventListener('touchstart', e=>{e.preventDefault();ms.jumpPressed=true;}, opt);
-  jz.addEventListener('touchend',   e=>{e.preventDefault();}, opt);
-  jz.addEventListener('mousedown',  e=>{e.preventDefault();ms.jumpPressed=true;}, opt);
-  jz.addEventListener('mouseup',    e=>{e.preventDefault();}, opt);
+  bindMove(tzL, 'left');
+  bindMove(tzR, 'right');
+
+  // ── 화면 어디든 터치 시작 = 점프 (이동존 포함, 이동존은 위에서 이미 세팅) ──
+  // canvas-wrap 전체에 touchstart 걸기 (이동존은 이미 jumpPressed=true 처리)
+  const wrap = document.getElementById('canvas-wrap');
+  wrap.addEventListener('touchstart', e=>{
+    e.preventDefault();
+    // tz-left/right 가 아닌 가운데 영역 터치도 점프
+    ms.jumpPressed = true;
+  }, opt);
+  wrap.addEventListener('mousedown', e=>{
+    // 마우스 왼클릭도 점프 (좌/우 영역 제외하고 중앙 클릭 시)
+    ms.jumpPressed = true;
+  }, opt);
 }
 setupInput();
 
@@ -648,7 +676,24 @@ function buildLevel(def) {
     for(let i=0; i<8; i++)  decor.push({type:'lotus', x:(i*15+6)*TILE, y:H-TILE*2-20});
   }
 
-  return { ground, platforms, tiles:[...ground,...platforms], coinList, enemies, goal, decor, def };
+  // ── 목숨 아이템 (하트) ──
+  // 스테이지마다 2~3개, 구간 등분 배치
+  const heartItems = [];
+  const hCount = Math.min(3, 1 + Math.floor(def.id * 0.6)); // stage1=1개, 2=2개, 3~5=3개
+  const hSpacing = Math.floor(def.goalX / (hCount + 1));
+  for(let hi=0; hi<hCount; hi++) {
+    const htx = hSpacing * (hi+1);
+    // 해당 X에 가장 높은 발판 찾기
+    let bestY = H - TILE*2 - TILE*5;
+    for(const t of platforms) {
+      if(t.x <= htx*TILE && htx*TILE < t.x+t.w) {
+        if(t.y < bestY) bestY = t.y;
+      }
+    }
+    heartItems.push({ x: htx*TILE + TILE/2, y: bestY - 20, collected:false, anim: hi * 1.2 });
+  }
+
+  return { ground, platforms, tiles:[...ground,...platforms], coinList, enemies, goal, decor, def, heartItems };
 }
 
 // ════════════════════════════════════════
@@ -803,6 +848,20 @@ function update() {
         e.alive=false; score+=200; p.vy=-8;
         spawnParticle(e.x+15,e.y+15,'#8B4513',10); updateHUD();
       } else { hurtPlayer(); }
+    }
+  }
+
+  // Heart items
+  for(const h of level.heartItems) {
+    if(h.collected) continue;
+    h.anim += 0.07;
+    if(rectsOverlap(p, h.x-14, h.y-14, 28, 28)) {
+      h.collected = true;
+      lives = Math.min(lives + 1, 5); // 최대 5개
+      score += 50;
+      spawnParticle(h.x, h.y, '#FF4488', 12);
+      showToast('❤️ 목숨 +1!', 2000);
+      updateHUD();
     }
   }
 
@@ -1135,6 +1194,40 @@ function drawGoal() {
   }
 }
 
+function drawHeartItems() {
+  for(const h of level.heartItems) {
+    if(h.collected) continue;
+    const dx = h.x - camX;
+    if(dx < -30 || dx > W+30) continue;
+    const bob = Math.sin(h.anim) * 4;
+    const glow = 0.6 + 0.4*Math.sin(h.anim*1.3);
+    ctx.save();
+    ctx.translate(dx, h.y + bob);
+    // 발광
+    ctx.shadowBlur = 18; ctx.shadowColor = '#FF4488';
+    ctx.globalAlpha = glow;
+    // 하트 모양
+    ctx.fillStyle = '#FF2266';
+    ctx.beginPath();
+    ctx.moveTo(0, 4);
+    ctx.bezierCurveTo(-14, -6, -16, -18, 0, -14);
+    ctx.bezierCurveTo(16, -18, 14, -6, 0, 4);
+    ctx.fill();
+    // 하이라이트
+    ctx.fillStyle = 'rgba(255,180,200,0.7)';
+    ctx.beginPath();
+    ctx.ellipse(-5, -12, 4, 3, -0.4, 0, Math.PI*2);
+    ctx.fill();
+    // 반짝이
+    ctx.globalAlpha = glow * 0.9;
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('+1', 0, -22);
+    ctx.restore();
+  }
+}
+
 function drawParticles() {
   for(const pt of particles) {
     ctx.save(); ctx.globalAlpha=pt.life;
@@ -1166,6 +1259,7 @@ function gameLoop() {
   for(const t of level.tiles) drawTile(t);
   drawGoal();
   for(const c of level.coinList) drawCoin(c);
+  drawHeartItems();
   for(const e of level.enemies) drawEnemy(e);
   drawParticles();
   drawPlayer();
@@ -1644,6 +1738,49 @@ function changeNickname() {
   document.getElementById('nick-input').focus();
   window._nickCallback = ()=>{ showRankingOverlay(); };
 }
+
+// ── 반응형 전체화면: 가로/세로 회전 대응 ──
+function resizeGame() {
+  const root = document.getElementById('game-root');
+  const uiBar = document.getElementById('ui-bar');
+  const wrap = document.getElementById('canvas-wrap');
+  const cvs = document.getElementById('game-canvas');
+
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const ASPECT = 800 / 450; // 게임 원본 비율
+
+  // ui-bar 높이 (실제)
+  const uiH = uiBar ? uiBar.offsetHeight + 4 : 36;
+  const availH = vh - uiH;
+  const availW = vw;
+
+  let gameW, gameH;
+  if(availW / availH > ASPECT) {
+    // 가로가 남음 → 높이 기준
+    gameH = availH;
+    gameW = gameH * ASPECT;
+  } else {
+    // 세로가 남음 → 너비 기준
+    gameW = availW;
+    gameH = gameW / ASPECT;
+  }
+
+  if(wrap) {
+    wrap.style.width  = gameW + 'px';
+    wrap.style.height = gameH + 'px';
+  }
+  if(cvs) {
+    cvs.style.width  = gameW + 'px';
+    cvs.style.height = gameH + 'px';
+  }
+  if(uiBar) {
+    uiBar.style.width = gameW + 'px';
+  }
+}
+window.addEventListener('resize', resizeGame);
+window.addEventListener('orientationchange', ()=>{ setTimeout(resizeGame, 100); });
+resizeGame();
 
 // ── Boot ──
 drawTitleScreen();
