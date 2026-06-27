@@ -87,6 +87,76 @@
     .mobile-btns { display:flex; }
     .ctrl-key { display:none; }
   }
+
+  /* ── Firebase / Ranking UI ── */
+  #nickname-overlay {
+    position:fixed; inset:0; background:rgba(20,8,0,0.95);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    z-index:20; gap:14px;
+  }
+  #nickname-overlay h2 {
+    font-family:'Cinzel Decorative',cursive; font-size:26px; color:var(--gold);
+    text-shadow:0 0 20px var(--saffron); text-align:center;
+  }
+  #nickname-overlay p { color:var(--rice); font-size:13px; text-align:center; max-width:320px; line-height:1.6; }
+  #nick-input {
+    background:rgba(255,255,255,0.08); border:2px solid var(--gold);
+    border-radius:10px; padding:10px 18px; color:var(--rice);
+    font-family:'Nunito',sans-serif; font-size:18px; font-weight:700;
+    text-align:center; outline:none; width:240px; letter-spacing:2px;
+  }
+  #nick-input::placeholder { color:rgba(245,230,200,0.35); letter-spacing:1px; }
+  #nick-input:focus { border-color:var(--saffron); box-shadow:0 0 12px rgba(232,137,26,0.4); }
+  #nick-confirm-btn {
+    background:linear-gradient(135deg,var(--saffron),var(--gold));
+    border:none; border-radius:30px; padding:10px 40px;
+    font-family:'Cinzel Decorative',cursive; font-size:15px; color:var(--shadow);
+    cursor:pointer; transition:transform 0.1s; margin-top:4px;
+  }
+  #nick-confirm-btn:hover { transform:scale(1.05); }
+  #nick-confirm-btn:active { transform:scale(0.97); }
+  /* 랭킹 패널 */
+  #ranking-panel {
+    background:linear-gradient(135deg,rgba(61,28,2,0.97),rgba(20,8,0,0.97));
+    border:2px solid var(--gold); border-radius:14px;
+    padding:18px 22px; min-width:300px; max-width:360px;
+  }
+  #ranking-panel h3 {
+    font-family:'Cinzel Decorative',cursive; font-size:16px; color:var(--gold);
+    text-align:center; margin-bottom:12px; letter-spacing:1px;
+  }
+  .rank-row {
+    display:flex; align-items:center; gap:10px;
+    padding:5px 8px; border-radius:8px; margin-bottom:4px;
+    font-family:'Nunito',sans-serif; font-size:13px;
+    background:rgba(255,255,255,0.04);
+  }
+  .rank-row.me { background:rgba(212,160,23,0.18); border:1px solid rgba(212,160,23,0.4); }
+  .rank-num  { font-weight:900; color:var(--gold); min-width:24px; text-align:center; font-size:15px; }
+  .rank-nick { flex:1; color:var(--rice); font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .rank-score { color:var(--saffron); font-weight:900; }
+  .rank-stage { color:#aaa; font-size:11px; }
+  .rank-loading { color:rgba(245,230,200,0.5); text-align:center; font-size:13px; padding:12px; }
+  /* 점수 등록 토스트 */
+  #score-toast {
+    position:fixed; bottom:80px; left:50%; transform:translateX(-50%);
+    background:rgba(61,28,2,0.95); border:2px solid var(--gold);
+    border-radius:30px; padding:8px 22px;
+    color:var(--rice); font-size:13px; font-weight:700;
+    z-index:30; opacity:0; transition:opacity 0.3s;
+    pointer-events:none; white-space:nowrap;
+  }
+  #score-toast.show { opacity:1; }
+  /* 랭킹 버튼 (HUD) */
+  #rank-btn {
+    position:fixed; top:12px; right:12px; z-index:8;
+    background:rgba(61,28,2,0.85); border:2px solid var(--gold);
+    border-radius:20px; padding:4px 12px; color:var(--gold);
+    font-size:12px; font-weight:900; cursor:pointer;
+    font-family:'Nunito',sans-serif; display:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+  #rank-btn:hover { background:rgba(92,45,0,0.95); }
 </style>
 </head>
 <body>
@@ -1135,9 +1205,12 @@ function showStageSelect() {
 function selectStage(idx) {
   document.getElementById('overlay').style.display='none';
   if(animFrame) cancelAnimationFrame(animFrame);
-  initStage(idx, false);
-  state='play';
-  requestAnimationFrame(gameLoop);
+  // 닉네임 없으면 먼저 입력받기
+  ensureNickname(()=>{
+    initStage(idx, false);
+    state='play';
+    requestAnimationFrame(gameLoop);
+  });
 }
 
 function showStageClear(nextIdx) {
@@ -1145,8 +1218,10 @@ function showStageClear(nextIdx) {
   const def=STAGE_DEFS[currentStage];
   const isLast=nextIdx>=STAGE_DEFS.length;
 
+  // 점수 Firebase에 저장
+  fbSaveScore(def.id);
+
   if(isLast) {
-    // ── 풀 엔딩 씬 ──
     document.getElementById('overlay').style.display='none';
     state='ending';
     startEndingScene();
@@ -1155,9 +1230,9 @@ function showStageClear(nextIdx) {
 
   const ov=document.getElementById('overlay');
   ov.innerHTML=`
-    <h1>🌺 Stage ${def.id} 클리어!</h1>
-    <p>${def.name} 완료!<br>현재 점수: ${score}<br><br>다음: ${STAGE_DEFS[nextIdx].emoji} ${STAGE_DEFS[nextIdx].name}</p>
-    <button id="start-btn" onclick="continueToNext(${nextIdx})">다음 스테이지 ➡️</button>
+    <h1>🌺 Stage \${def.id} 클리어!</h1>
+    <p>\${def.name} 완료!<br>현재 점수: \${score}<br><br>다음: \${STAGE_DEFS[nextIdx].emoji} \${STAGE_DEFS[nextIdx].name}</p>
+    <button id="start-btn" onclick="continueToNext(\${nextIdx})">다음 스테이지 ➡️</button>
     <button id="start-btn" style="background:linear-gradient(135deg,#5C2D00,#3D1C02);color:#D4A017;margin-top:8px;font-size:13px;padding:8px 28px" onclick="showStageSelect()">스테이지 선택</button>
   `;
   ov.style.display='flex';
@@ -1173,12 +1248,15 @@ function continueToNext(nextIdx) {
 
 function showGameOver() {
   if(animFrame) cancelAnimationFrame(animFrame);
+  // 현재 스테이지 기준으로 점수 저장
+  fbSaveScore(currentStage + 1);
   const ov=document.getElementById('overlay');
   ov.innerHTML=`
     <h1>💀 게임 오버</h1>
-    <p>발리의 수호신이 화났어요!\n최종 점수: ${score}</p>
-    <button id="start-btn" onclick="selectStage(${currentStage})">다시 도전 🎮</button>
-    <button id="start-btn" style="background:linear-gradient(135deg,#5C2D00,#3D1C02);color:#D4A017;margin-top:8px;font-size:13px;padding:8px 28px" onclick="showStageSelect()">스테이지 선택</button>
+    <p>발리의 수호신이 화났어요!<br>최종 점수: \${score}</p>
+    <button id="start-btn" onclick="selectStage(\${currentStage})">다시 도전 🎮</button>
+    <button id="start-btn" style="background:linear-gradient(135deg,var(--saffron),var(--gold));color:var(--shadow);margin-top:4px;font-size:13px;padding:8px 24px" onclick="showRankingOverlay()">🏆 랭킹 보기</button>
+    <button id="start-btn" style="background:linear-gradient(135deg,#5C2D00,#3D1C02);color:#D4A017;margin-top:4px;font-size:13px;padding:8px 24px" onclick="showStageSelect()">스테이지 선택</button>
   `;
   ov.style.display='flex';
 }
@@ -1451,9 +1529,186 @@ function drawTitleScreen() {
   ctx.beginPath(); ctx.arc(W-80,70,38,0,Math.PI*2); ctx.fill();
 }
 
+
+// ════════════════════════════════════════
+//  FIREBASE RANKING SYSTEM
+// ════════════════════════════════════════
+let playerNickname = '';
+
+function getNickname() {
+  try { return localStorage.getItem('bq_nickname') || ''; } catch(e){ return ''; }
+}
+function saveNickname(n) {
+  try { localStorage.setItem('bq_nickname', n); } catch(e){}
+}
+
+// 닉네임 오버레이 표시 후 콜백 실행
+function ensureNickname(callback) {
+  const saved = getNickname();
+  if(saved) { playerNickname = saved; callback(); return; }
+  const ov = document.getElementById('nickname-overlay');
+  ov.style.display = 'flex';
+  document.getElementById('nick-input').focus();
+  window._nickCallback = callback;
+}
+
+function confirmNickname() {
+  const val = document.getElementById('nick-input').value.trim();
+  if(!val) { document.getElementById('nick-input').focus(); return; }
+  playerNickname = val;
+  saveNickname(val);
+  document.getElementById('nickname-overlay').style.display = 'none';
+  if(window._nickCallback) { window._nickCallback(); window._nickCallback=null; }
+}
+// 엔터키로도 확인
+document.addEventListener('DOMContentLoaded', ()=>{
+  const inp = document.getElementById('nick-input');
+  if(inp) inp.addEventListener('keydown', e=>{ if(e.key==='Enter') confirmNickname(); });
+});
+
+// 점수 저장 (게임 오버 / 스테이지 클리어 시 호출)
+async function fbSaveScore(stageCleared) {
+  if(!window._fbReady || !window._fbSaveScore) return;
+  const nick = getNickname() || '익명';
+  const ok = await window._fbSaveScore(nick, score, stageCleared);
+  if(ok) showToast(`🏆 점수 등록! ${nick} — ${score}점`);
+}
+
+function showToast(msg, duration=3000) {
+  const t = document.getElementById('score-toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), duration);
+}
+
+// 랭킹 오버레이
+async function showRankingOverlay() {
+  const savedState = state;
+  if(animFrame) cancelAnimationFrame(animFrame);
+
+  const ov = document.getElementById('overlay');
+  ov.innerHTML = `
+    <h1>🏆 랭킹</h1>
+    <div id="ranking-panel">
+      <h3>🌺 Bali Quest 명예의 전당</h3>
+      <div class="rank-loading">불러오는 중...</div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:4px;">
+      <button id="start-btn" onclick="changeNickname()">✏️ 닉네임 변경</button>
+      <button id="start-btn" style="background:linear-gradient(135deg,#5C2D00,#3D1C02);color:var(--gold);font-size:13px;padding:8px 24px" onclick="closeRankingOverlay('${savedState}')">닫기 ✕</button>
+    </div>
+  `;
+  ov.style.display = 'flex';
+
+  if(!window._fbReady || !window._fbGetRanking) {
+    document.querySelector('.rank-loading').textContent = '⚠️ Firebase 미연결 (config 설정 필요)';
+    return;
+  }
+
+  const rows = await window._fbGetRanking();
+  const myNick = getNickname();
+  const panel = document.getElementById('ranking-panel');
+  if(!panel) return;
+
+  const medals = ['🥇','🥈','🥉'];
+  const items = rows.map((r,i)=>{
+    const isMe = r.nickname === myNick;
+    return `<div class="rank-row${isMe?' me':''}">
+      <span class="rank-num">${medals[i]||`${i+1}`}</span>
+      <span class="rank-nick">${r.nickname||'익명'}${isMe?' 👈':''}</span>
+      <span class="rank-stage">S${r.stage||'?'}</span>
+      <span class="rank-score">${(r.score||0).toLocaleString()}</span>
+    </div>`;
+  }).join('');
+
+  panel.innerHTML = `
+    <h3>🌺 Bali Quest 명예의 전당</h3>
+    ${items || '<div class="rank-loading">아직 기록이 없습니다!</div>'}
+    <div style="margin-top:10px;font-size:11px;color:rgba(245,230,200,0.4);text-align:center;">내 닉네임: ${myNick||'미설정'}</div>
+  `;
+}
+
+function closeRankingOverlay(prevState) {
+  document.getElementById('overlay').style.display = 'none';
+  if(prevState === 'play' && level) {
+    state = 'play';
+    requestAnimationFrame(gameLoop);
+  } else {
+    showStageSelect();
+  }
+}
+
+function changeNickname() {
+  const ov = document.getElementById('nickname-overlay');
+  document.getElementById('nick-input').value = getNickname();
+  ov.style.display = 'flex';
+  document.getElementById('nick-input').focus();
+  window._nickCallback = ()=>{ showRankingOverlay(); };
+}
+
 // ── Boot ──
 drawTitleScreen();
 showStageSelect();
 </script>
+
+<!-- Firebase SDK -->
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs, serverTimestamp }
+  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+// ── Firebase 설정 (여기에 본인 config 붙여넣기) ──
+const firebaseConfig = {
+  apiKey:            "FIREBASE_API_KEY",
+  authDomain:        "FIREBASE_AUTH_DOMAIN",
+  projectId:         "FIREBASE_PROJECT_ID",
+  storageBucket:     "FIREBASE_STORAGE_BUCKET",
+  messagingSenderId: "FIREBASE_MESSAGING_SENDER_ID",
+  appId:             "FIREBASE_APP_ID"
+};
+
+const app = initializeApp(firebaseConfig);
+const db  = getFirestore(app);
+const COL = 'rankings';
+
+// ── 외부에서 호출 가능하도록 window에 등록 ──
+window._fbSaveScore = async function(nickname, scoreVal, stageCleared) {
+  try {
+    await addDoc(collection(db, COL), {
+      nickname: nickname.trim().slice(0,12) || '익명',
+      score: scoreVal,
+      stage: stageCleared,
+      ts: serverTimestamp()
+    });
+    return true;
+  } catch(e) { console.warn('FB save error', e); return false; }
+};
+
+window._fbGetRanking = async function() {
+  try {
+    const q = query(collection(db, COL), orderBy('score','desc'), limit(10));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id:d.id, ...d.data() }));
+  } catch(e) { console.warn('FB get error', e); return []; }
+};
+
+// DB 연결 확인 후 랭킹 버튼 표시
+window._fbReady = true;
+document.getElementById('rank-btn').style.display = 'block';
+</script>
+
+<!-- 닉네임 입력 오버레이 -->
+<div id="nickname-overlay" style="display:none;">
+  <h2>🌺 닉네임 설정</h2>
+  <p>랭킹에 등록될 이름을 입력하세요.<br>(최대 12자, 언제든 변경 가능)</p>
+  <input id="nick-input" type="text" maxlength="12" placeholder="닉네임 입력..." autocomplete="off" spellcheck="false">
+  <button id="nick-confirm-btn" onclick="confirmNickname()">확인 ✔</button>
+</div>
+
+<!-- 점수 등록 토스트 -->
+<div id="score-toast"></div>
+
+<!-- 랭킹 버튼 (우상단) -->
+<button id="rank-btn" onclick="showRankingOverlay()">🏆 랭킹</button>
+
 </body>
 </html>
