@@ -563,6 +563,9 @@ document.addEventListener('keydown', e=>{
 },{passive:false});
 document.addEventListener('keyup', e=>{ keys[e.code]=false; });
 window.addEventListener('blur', ()=>{ for(const k in keys) keys[k]=false; });
+// 모바일 스크롤/줌 완전 차단 (게임 중 화면 밀림 방지)
+document.addEventListener('touchmove', e=>e.preventDefault(), {passive:false});
+document.addEventListener('gesturestart', e=>e.preventDefault(), {passive:false});
 
 function setupInput() {
   const opt = {passive:false};
@@ -693,7 +696,16 @@ function buildLevel(def) {
     heartItems.push({ x: htx*TILE + TILE/2, y: bestY - 20, collected:false, anim: hi * 1.2 });
   }
 
-  return { ground, platforms, tiles:[...ground,...platforms], coinList, enemies, goal, decor, def, heartItems };
+  // 속도 부스터 아이템 (번개) — 스테이지 중간에 1개
+  const speedItems = [];
+  const sTx = Math.floor(def.goalX * 0.55);
+  let sBestY = H - TILE*2 - TILE*4;
+  for(const t of platforms) {
+    if(t.x <= sTx*TILE && sTx*TILE < t.x+t.w && t.y < sBestY) sBestY = t.y;
+  }
+  speedItems.push({ x: sTx*TILE + TILE/2, y: sBestY - 22, collected:false, anim:0, timer:0 });
+
+  return { ground, platforms, tiles:[...ground,...platforms], coinList, enemies, goal, decor, def, heartItems, speedItems };
 }
 
 // ════════════════════════════════════════
@@ -707,7 +719,7 @@ function initStage(stageIdx, keepScore) {
     x:2*TILE, y:H-TILE*4, vx:0, vy:0, w:28, h:36,
     onGround:false, facing:1, invincible:0,
     jumpHeld:0, coyoteFrames:0, jumpBuffer:0, airJumps:1,
-    runAnim:0, dead:false, deathTimer:0,
+    runAnim:0, dead:false, deathTimer:0, speedBoost:0,
   };
   jumpLock = false;
   particles = [];
@@ -727,7 +739,9 @@ function spawnParticle(x,y,color,count=6) {
 
 function updateHUD() {
   document.getElementById('score-el').textContent = score;
-  document.getElementById('lives-el').textContent = '❤️'.repeat(Math.max(0,lives));
+  const lvEl = document.getElementById('lives-el');
+  if(lives <= 3) lvEl.textContent = '❤️'.repeat(Math.max(0,lives));
+  else lvEl.textContent = '❤️×' + lives;
 }
 
 // ════════════════════════════════════════
@@ -764,8 +778,6 @@ function update() {
     p.deathTimer--;
     p.vy+=GRAVITY; p.y+=p.vy;
     if(p.deathTimer<=0) {
-      lives--;
-      updateHUD();
       if(lives<=0){ state='gameover'; showGameOver(); return; }
       p.dead=false;
       p.x=2*TILE; p.y=H-TILE*4; p.vx=0; p.vy=0; p.invincible=120;
@@ -779,8 +791,10 @@ function update() {
   // ── 프레임 시작에 입력 한 번만 스냅샷 ──
   snapshotInput();
 
+  // 속도 부스터 타이머
+  if(p.speedBoost>0) p.speedBoost--;
   // ── 이동 (snap 사용, isLeft()/isRight() 재호출 없음) ──
-  const spd = snap.dash ? 6 : 5;
+  const spd = (snap.dash ? 6 : 5) + (p.speedBoost>0 ? 3 : 0);
   if(snap.left)  { p.vx=Math.max(p.vx-1,-spd); p.facing=-1; }
   if(snap.right) { p.vx=Math.min(p.vx+1, spd); p.facing= 1; }
   if(!snap.left && !snap.right) p.vx*=0.75;
@@ -845,9 +859,24 @@ function update() {
     if(e.x<e.startX||e.x>e.endX){ e.vx*=-1; e.dir*=-1; }
     if(rectsOverlap(p,e.x,e.y,30,30)) {
       if(p.vy>0&&p.y+p.h<e.y+20) {
-        e.alive=false; score+=200; p.vy=-8;
+        e.alive=false; score+=200; p.vy=-10;
+        p.airJumps=1; // 적 밟은 후 더블점프 리셋
         spawnParticle(e.x+15,e.y+15,'#8B4513',10); updateHUD();
       } else { hurtPlayer(); }
+    }
+  }
+
+  // Speed boost items
+  for(const s of level.speedItems) {
+    if(s.collected) continue;
+    s.anim += 0.1;
+    if(rectsOverlap(p, s.x-14, s.y-14, 28, 28)) {
+      s.collected = true;
+      p.speedBoost = 300; // 5초 (60fps 기준)
+      score += 30;
+      spawnParticle(s.x, s.y, '#00FFFF', 10);
+      showToast('⚡ 속도 부스터 5초!', 2000);
+      updateHUD();
     }
   }
 
@@ -880,9 +909,11 @@ function update() {
     return;
   }
 
-  const targetCamX=p.x-W/2+p.w/2;
-  camX+=(targetCamX-camX)*0.12;
-  camX=Math.max(0,camX);
+  // 이동 방향 전방 예측 카메라
+  const lookahead = p.vx * 8;
+  const targetCamX = p.x - W/2 + p.w/2 + lookahead;
+  camX += (targetCamX - camX) * 0.10;
+  camX = Math.max(0, camX);
 
   for(let i=particles.length-1;i>=0;i--) {
     const pt=particles[i];
@@ -893,10 +924,15 @@ function update() {
 
 function hurtPlayer() {
   if(player.invincible>0||player.dead) return;
-  player.invincible=90; player.vy=-6; lives--; updateHUD();
-  if(lives<=0) killPlayer();
+  player.invincible=90; player.vy=-6;
+  lives--;
+  updateHUD();
+  if(lives<=0) {
+    killPlayer();
+  }
 }
 function killPlayer() {
+  if(player.dead) return; // 중복 호출 방지
   player.dead=true; player.deathTimer=90; player.vy=-12;
 }
 
@@ -1194,6 +1230,41 @@ function drawGoal() {
   }
 }
 
+function drawSpeedItems() {
+  if(!level.speedItems) return;
+  for(const s of level.speedItems) {
+    if(s.collected) continue;
+    const dx = s.x - camX;
+    if(dx < -30 || dx > W+30) continue;
+    const bob = Math.sin(s.anim) * 4;
+    ctx.save();
+    ctx.translate(dx, s.y + bob);
+    ctx.shadowBlur = 20; ctx.shadowColor = '#00FFFF';
+    // 번개 모양
+    ctx.fillStyle = '#00DDFF';
+    ctx.beginPath();
+    ctx.moveTo(4,-16); ctx.lineTo(-4,-2); ctx.lineTo(2,-2);
+    ctx.lineTo(-4,14); ctx.lineTo(6,0); ctx.lineTo(0,0);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.font = 'bold 10px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('SPEED', 0, -20);
+    ctx.restore();
+  }
+  // 플레이어 속도 부스터 활성화 중 표시
+  if(player.speedBoost > 0) {
+    const px = player.x - camX + player.w/2;
+    const py = player.y - 8;
+    ctx.save();
+    ctx.globalAlpha = 0.7 + 0.3*Math.sin(Date.now()*0.02);
+    ctx.shadowBlur = 12; ctx.shadowColor = '#00FFFF';
+    ctx.fillStyle = '#00FFFF';
+    ctx.font = 'bold 13px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('⚡', px, py);
+    ctx.restore();
+  }
+}
+
 function drawHeartItems() {
   for(const h of level.heartItems) {
     if(h.collected) continue;
@@ -1259,15 +1330,25 @@ function gameLoop() {
   for(const t of level.tiles) drawTile(t);
   drawGoal();
   for(const c of level.coinList) drawCoin(c);
+  drawSpeedItems();
   drawHeartItems();
   for(const e of level.enemies) drawEnemy(e);
   drawParticles();
   drawPlayer();
   // HUD overlay
-  ctx.fillStyle='rgba(20,8,0,0.55)';
-  roundRect(ctx,10,10,130,30,8); ctx.fill();
-  ctx.fillStyle='#FFD700'; ctx.font='bold 15px Nunito';
-  ctx.fillText(`🪙 × ${coins}  +${STAGE_DEFS[currentStage].coinBonus}`,18,30);
+  // 코인 HUD
+  ctx.fillStyle='rgba(20,8,0,0.6)';
+  roundRect(ctx,10,10,150,32,8); ctx.fill();
+  ctx.fillStyle='#FFD700'; ctx.font='bold 14px Nunito,sans-serif';
+  ctx.textAlign='left';
+  ctx.fillText('COIN  ' + coins + '  (+' + STAGE_DEFS[currentStage].coinBonus + ')', 18, 31);
+  // 더블점프 표시
+  if(!player.onGround && player.airJumps<=0) {
+    ctx.fillStyle='rgba(200,75,143,0.85)';
+    roundRect(ctx,10,50,110,24,6); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.font='bold 12px Nunito,sans-serif';
+    ctx.fillText('2단 점프 사용됨', 18, 66);
+  }
   update();
 }
 
@@ -1323,10 +1404,11 @@ function showStageClear(nextIdx) {
   }
 
   const ov=document.getElementById('overlay');
+  const nextDef=STAGE_DEFS[nextIdx];
   ov.innerHTML=`
-    <h1>🌺 Stage \${def.id} 클리어!</h1>
-    <p>\${def.name} 완료!<br>현재 점수: \${score}<br><br>다음: \${STAGE_DEFS[nextIdx].emoji} \${STAGE_DEFS[nextIdx].name}</p>
-    <button id="start-btn" onclick="continueToNext(\${nextIdx})">다음 스테이지 ➡️</button>
+    <h1>🌺 Stage ${def.id} 클리어!</h1>
+    <p>${def.name} 완료!<br>현재 점수: ${score}<br><br>다음: ${nextDef.emoji} ${nextDef.name}</p>
+    <button id="start-btn" onclick="continueToNext(${nextIdx})">다음 스테이지 ➡️</button>
     <button id="start-btn" style="background:linear-gradient(135deg,#5C2D00,#3D1C02);color:#D4A017;margin-top:8px;font-size:13px;padding:8px 28px" onclick="showStageSelect()">스테이지 선택</button>
   `;
   ov.style.display='flex';
@@ -1347,8 +1429,8 @@ function showGameOver() {
   const ov=document.getElementById('overlay');
   ov.innerHTML=`
     <h1>💀 게임 오버</h1>
-    <p>발리의 수호신이 화났어요!<br>최종 점수: \${score}</p>
-    <button id="start-btn" onclick="selectStage(\${currentStage})">다시 도전 🎮</button>
+    <p>발리의 수호신이 화났어요!<br>최종 점수: ${score}</p>
+    <button id="start-btn" onclick="selectStage(${currentStage})">다시 도전 🎮</button>
     <button id="start-btn" style="background:linear-gradient(135deg,var(--saffron),var(--gold));color:var(--shadow);margin-top:4px;font-size:13px;padding:8px 24px" onclick="showRankingOverlay()">🏆 랭킹 보기</button>
     <button id="start-btn" style="background:linear-gradient(135deg,#5C2D00,#3D1C02);color:#D4A017;margin-top:4px;font-size:13px;padding:8px 24px" onclick="showStageSelect()">스테이지 선택</button>
   `;
